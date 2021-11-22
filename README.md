@@ -72,9 +72,7 @@ GET `/download/analysis_42_pose.mp4`
 
 # Implementation
 
-- Database <del>or file system based only</del>?
-
-  - SQLite probably OK for this application
+- Database <del>or file system based only</del>? SQLite probably OK for this application
 
 - How to handle analysis jobs? Is a Task Queue framework needed, such as [Celery](https://docs.celeryproject.org/en/stable/)?
 
@@ -89,7 +87,6 @@ GET `/download/analysis_42_pose.mp4`
   ```id | filename | status | sha-1```
 
 - return `id` to user
-
 
 ## Analysis for file
 
