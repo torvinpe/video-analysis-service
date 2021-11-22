@@ -48,8 +48,8 @@ Response (HTTP 200):
 ## Get analysis
 
 Endpoint to poll if results are ready yet. We respond perhaps with HTTP 202 and
-empty content if no result yet (but the result_id was a valid one). When result
-is ready we return (HTTP 200) the results JSON. The result can contain links to
+empty content if no result yet (but the analysis_id was a valid one). When result
+is ready we return (HTTP 200) the results as JSON. The result can contain links to
 files related to the analysis which need to be downloaded separately.
 
 GET `/results/<analysis_id>`
@@ -61,11 +61,11 @@ Response (not ready yet):
 Response (ready, HTTP 200):
 
     {
-        result: [0, 1, 2],
+        result: [0.2, 0.99, -4.0],
         video_file: /download/analysis_42_pose.mp4
     }
 
-## Get video result
+## Get result files
 
 GET `/download/analysis_42_pose.mp4`
 
