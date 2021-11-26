@@ -1,3 +1,20 @@
+# Installation
+
+```bash
+sudo yum install redis
+pip install flask celery[redis]
+```
+
+# Usage
+
+Important: `--concurrency=1` flag to celery so that it runs only one job at a time.
+
+```bash
+sudo systemctl start redis
+celery -A app.celery worker --concurrency=1
+flask run  # in separate terminal
+```
+
 # API
 
 ## Upload file for analysis
