@@ -95,11 +95,36 @@ def upload_file():
         print('File {} with sha1 {} already found in database'.format(
             fname, hash_digest))
 
-    # task = analyse_video.apply_async(args=(local_fname,))
-
-    # return jsonify({'task_id': task.id}), 202
     cur.close()
     return jsonify({'file_id': hash_digest}), 202
+
+
+@app.route('/analysis', methods=['POST'])
+def start_analysis():
+    # Check arguments
+    if 'file_id' not in request.form:
+        return make_response(("Not file_id given", 400))
+    file_id = request.form['file_id']
+    analysis = request.form.get('analysis', 'default')
+
+    # Open database
+    con = db.get_db()
+    cur = con.cursor()
+
+    # Find file_id in database
+    file_exists = False
+    cur.execute('SELECT filename FROM files WHERE sha1 LIKE ?', (file_id+'%',))
+    found = cur.fetchone()
+    if not found:
+        return make_response(("Given file_id not found", 400))
+    local_fname = found['filename']
+
+    if not os.path.exists(local_fname):
+        return make_response(("File no longer exists in server", 400))
+
+    task = analyse_video.apply_async(args=(local_fname,))
+
+    return jsonify({'task_id': task.id}), 202
 
 
 @app.route('/results/<analysis_id>')

@@ -17,6 +17,25 @@ flask run  # in separate terminal
 
 For development, `export FLASK_ENV=development` might also be handy.
 
+Testing upload (example):
+
+```bash
+curl -F "file=@hello.txt" http://127.0.0.1:5000/upload
+```
+
+Start analysis (example):
+
+```bash
+curl -d "file_id=7b4758d4" http://127.0.0.1:5000/analysis
+```
+
+Check results (example):
+
+```bash
+curl http://127.0.0.1:5000/results/bbf6b9ce-4942-43e1-98b1-abc817bd9fe5
+```
+
+
 # API
 
 ## Upload file for analysis
