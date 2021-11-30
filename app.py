@@ -57,32 +57,48 @@ def calculate_hash(fp):
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    # Check if we are receiving a valid file upload (multipart/form-data)
     if 'file' not in request.files:
         return make_response(("No file given", 400))
     fp = request.files['file']
     if fp.filename == '':
         return make_response(("Empty file", 400))
 
+    # Calculate SHA1 hash of file
     fname = secure_filename(fp.filename)
     hash_digest = calculate_hash(fp)
+    short_hash = hash_digest[:8]
 
-    # TODO check if hash already exists in database
-    
-    local_dir = os.path.join(app.config['DATA_FOLDER'], hash_digest[:8])
-    local_fname = os.path.join(local_dir, fname)
-    os.mkdir(local_dir)
-    fp.save(local_fname)
+    # Open database
+    con = db.get_db()
+    cur = con.cursor()
 
-    cur = db.get_db().cursor()
-    cur.execute("INSERT INTO files (filename, sha1) VALUES (?, ?)",
-                (local_fname, hash_digest))
-    cur.close()
+    # Check if SHA1 present already in database
+    file_exists = False
+    cur.execute("SELECT filename FROM files WHERE sha1=?", (hash_digest,))
+    found = cur.fetchone()
+    if found:
+        local_fname = found['filename']
+        file_exists = os.path.exists(local_fname)
 
-    # TODO why not actually storing anything to database?
-    
+    # If no SHA1 in db, or its corresponding file is missing...
+    if not file_exists:
+        local_dir = os.path.join(app.config['DATA_FOLDER'], short_hash)
+        local_fname = os.path.join(local_dir, fname)
+        os.makedirs(local_dir, exist_ok=True)
+        fp.save(local_fname)
+
+        cur.execute("REPLACE INTO files (filename, sha1) VALUES (?, ?)",
+                    (local_fname, hash_digest))
+        con.commit()
+    else:
+        print('File {} with sha1 {} already found in database'.format(
+            fname, hash_digest))
+
     # task = analyse_video.apply_async(args=(local_fname,))
 
     # return jsonify({'task_id': task.id}), 202
+    cur.close()
     return jsonify({'file_id': hash_digest}), 202
 
 

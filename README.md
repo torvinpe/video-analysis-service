@@ -15,6 +15,8 @@ celery -A app.celery worker --concurrency=1
 flask run  # in separate terminal
 ```
 
+For development, `export FLASK_ENV=development` might also be handy.
+
 # API
 
 ## Upload file for analysis
