@@ -31,7 +31,7 @@ def make_celery(app):
 app = Flask(__name__)
 app.config.update(
     DATABASE='db.sqlite3',
-    DATA_FOLDER='/home/msjoberg/code/video-analysis-service/data',
+    DATA_FOLDER='/media/data/code/video-analysis-service/data',
     result_backend='redis://localhost:6379',
     CELERY_broker_url='redis://localhost:6379'
 )
@@ -153,7 +153,7 @@ def analyse_video(fname, sha1):
     print('Analysis done!')
     return {'result': 42,
             'file_id': sha1,
-            'csv_file': }
+            'csv_file': 'foo'}
 
 
 @celery.task
@@ -176,10 +176,11 @@ def start_analysis():
     if 'file_id' not in request.form:
         return make_response(("Not file_id given\n", 400))
     file_id = request.form['file_id']
-    analysis = request.form.get('analysis').lower()
+    analysis = request.form.get('analysis')
 
     if analysis is None:
         return make_response(("No analysis task given\n", 400))
+    analysis = analysis.lower()
 
     # Open database
     con = db.get_db()

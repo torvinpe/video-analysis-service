@@ -15,24 +15,25 @@ celery -A app.celery worker --concurrency=1
 flask run  # in separate terminal
 ```
 
-For development, `export FLASK_ENV=development` might also be handy.
+For development, `export FLASK_ENV=development` might also be handy. Before the
+first run you also need to initialize the sqlite3 database with `flask init-db`.
 
 Testing upload (example):
 
 ```bash
-curl -F "file=@hello.txt" http://127.0.0.1:5000/upload
+curl -F "file=@hello.txt" http://127.0.0.1:5000/file
 ```
 
 Start analysis (example):
 
 ```bash
-curl -d "file_id=7b4758d4" http://127.0.0.1:5000/analysis
+curl -d file_id=7b4758d4 -d analysis=sleep -d time=10 http://127.0.0.1:5000/analysis
 ```
 
 Check results (example):
 
 ```bash
-curl http://127.0.0.1:5000/results/bbf6b9ce-4942-43e1-98b1-abc817bd9fe5
+curl http://127.0.0.1:5000/analysis/32355caf-f322-4b05-b1c2-878d1e9be272
 ```
 
 
