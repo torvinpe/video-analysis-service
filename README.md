@@ -76,7 +76,7 @@ Start analysis for previously uploaded file. In theory we could start many
 different types of analyses for the same file. Response will give `analysis_id`,
 an identifier for later accessing the analysis results.
 
-POST `/analyse`
+POST `/analysis`
 
 Parameters (multipart/form-data format):
 
@@ -96,7 +96,7 @@ empty content if no result yet (but the analysis_id was a valid one). When resul
 is ready we return (HTTP 200) the results as JSON. The result can contain links to
 files related to the analysis which need to be downloaded separately.
 
-GET `/results/<analysis_id>`
+GET `/analysis/<analysis_id>`
 
 Response (not ready yet):
 
@@ -113,39 +113,3 @@ Response (ready, HTTP 200):
 
 GET `/download/analysis_42_pose.mp4`
 
-
-# Implementation
-
-- Database <del>or file system based only</del>? SQLite probably OK for this application
-
-- How to handle analysis jobs? Is a Task Queue framework needed, such as [Celery](https://docs.celeryproject.org/en/stable/)?
-
-## Upload file
-
-- Store file on disk, e.g., based on `<file_id>`
-
-- Check for duplicates with SHA-1 or similar?
-
-- db table, `uploaded_file`:
-
-  ```id | filename | status | sha-1```
-
-- return `id` to user
-
-## Analysis for file
-
-- db table, `analysis`
-
-  ```id | file_id | analysis_name | args | status```
-
-- Implement 'dummy_N' analysis that just idles for N seconds.
-
-    { file_id: 42, analysis: 'dummy', args: { 'seconds': 60 } }
-
-- Return `id` to user
-
-- How to report back completed analysis? Celery?
-
-## Get analysis
-
-Simply check status in database

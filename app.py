@@ -130,8 +130,30 @@ def get_single_file(file_id):
 def analyse_video(fname, sha1):
     print('Starting FAKE analysis of video {}...'.format(fname))
     time.sleep(30)
+
+    import csv
+    ldir = os.path.dirname(fname)
+    csv_fname = os.path.join(ldir, 'output.csv')
+    with open(csv_fname, 'w') as fp:
+        w = csv.writer(fp)
+        w.writerow(['x', 'y', 'value'])
+        w.writerow([1.0, 2.0, 33.0])
+        w.writerow([3.0, 4.0, 42.0])
+
+    # TODO: save as new file to table with own hash?
+    # or does DeepLabCut assume some files to exist in specific dir?
+        
+    # hash_digest = calculate_hash(open(csv_fname))
+
+    # # Open database
+    # con = db.get_db()
+    # cur = con.cursor()
+    
+        
     print('Analysis done!')
-    return {'result': 42, 'file_id': sha1}
+    return {'result': 42,
+            'file_id': sha1,
+            'csv_file': }
 
 
 @celery.task
