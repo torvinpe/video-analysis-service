@@ -57,11 +57,12 @@ Response (example):
 
 GET `/file`
 
-## Get info on one specific file
+## Download specific file
 
 GET `/file/<file_id>`
 
-The given file id can be the first characters of the SHA1, first match is returned.
+The given file id can be the first characters of the SHA1, returned if there is
+a single unambiguous match.
 
 ## Delete file
 
@@ -107,10 +108,7 @@ Response (ready, HTTP 200):
 
     {
         result: [0.2, 0.99, -4.0],
-        video_file: /download/analysis_42_pose.mp4
+        video_file: afa468f55c2d7a9ba62da5a1b33caa55d393c730,
     }
 
-## Get result files
-
-GET `/download/analysis_42_pose.mp4`
-
+Files are given as hashes, which you can fetch with `GET /file/<sha1_hash>`

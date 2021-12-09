@@ -1,10 +1,13 @@
+import db
 import hashlib
+import io
 import os
 import time
+
 from celery import Celery
-from flask import Flask, request, make_response, jsonify
+from flask import Flask, request, make_response, jsonify, send_file
 from werkzeug.utils import secure_filename
-import db
+
 
 # Celery support with help from these links:
 # https://flask.palletsprojects.com/en/2.0.x/patterns/celery/
@@ -39,6 +42,12 @@ celery = make_celery(app)
 
 db.init_app(app)
 
+# Database
+#
+# Table files
+# - filename, file path + name starting from DATA_FOLDER
+# - sha1, hash of file contents, should be unique
+
 
 def calculate_hash(fp):
     hash = hashlib.sha1()
@@ -47,10 +56,8 @@ def calculate_hash(fp):
     return hash.hexdigest()
 
 
-def local_path(hash_digest, fname):
-    short_hash = hash_digest[:8]
-    local_dir = os.path.join(app.config['DATA_FOLDER'], short_hash)
-    return os.path.join(local_dir, fname)
+def data_path(db_fname):
+    return os.path.join(app.config['DATA_FOLDER'], db_fname)
 
 
 def handle_upload(request):
@@ -62,6 +69,7 @@ def handle_upload(request):
         return make_response(("Empty file\n", 400))
 
     # Calculate SHA1 hash of file
+    content_type = fp.content_type
     fname = secure_filename(fp.filename)
     hash_digest = calculate_hash(fp)
 
@@ -69,22 +77,27 @@ def handle_upload(request):
     con = db.get_db()
     cur = con.cursor()
 
-    # Check if SHA1 present already in database
+    # Check if SHA1 already present in database
     file_exists = False
     cur.execute("SELECT filename FROM files WHERE sha1=?", (hash_digest,))
     found = cur.fetchone()
     if found:
-        local_fname = local_path(hash_digest, found['filename'])
-        file_exists = os.path.exists(local_fname)
+        file_exists = os.path.exists(data_path(found['filename']))
 
     # If no SHA1 in db, or its corresponding file is missing...
     if not file_exists:
-        local_fname = local_path(hash_digest, fname)
-        os.makedirs(os.path.dirname(local_fname), exist_ok=True)
-        fp.save(local_fname)
+        subdir = hash_digest[:8]  # directory, inside DATA_FOLDER
+        fname = os.path.join(subdir, fname)  # file inside DATA_FOLDER
 
-        cur.execute("REPLACE INTO files (filename, sha1) VALUES (?, ?)",
-                    (fname, hash_digest))
+        # Create dir if doesn't exist
+        os.makedirs(os.path.dirname(data_path(fname)), exist_ok=True)
+
+        # Save file
+        fp.seek(0)
+        fp.save(data_path(fname))
+
+        cur.execute("REPLACE INTO files (filename, sha1, content_type) VALUES (?, ?, ?)",
+                    (fname, hash_digest, content_type))
         con.commit()
     else:
         print('File {} with sha1 {} already found in database'.format(
@@ -97,7 +110,7 @@ def handle_upload(request):
 def get_fileinfo(file_id):
     con = db.get_db()
     cur = con.cursor()
-    fields = ['sha1', 'filename']
+    fields = ['sha1', 'filename', 'content_type']
     sql_query = "SELECT {} FROM files".format(','.join(fields))
     if file_id is None:
         cur.execute(sql_query)
@@ -120,10 +133,20 @@ def get_all_files():
 @app.route('/file/<file_id>')
 def get_single_file(file_id):
     result = get_fileinfo(file_id)
-    if len(result) != 1:
-        print('WARNING: GET {} produced {} rows instead of one!'.format(
-            file_id, len(result)))
-    return jsonify(result[0]), 200
+    if len(result) == 0:
+        return make_response(("No file with that id!\n", 400))
+    if len(result) > 1:
+        return make_response(("Ambiguous id, matched more than one file!\n", 400))
+
+    fname = result[0]['filename']
+    with open(data_path(fname), 'rb') as fp:
+        print('Returning file', fname)
+        bindata = fp.read()
+        return send_file(io.BytesIO(bindata),
+                         attachment_filename=os.path.basename(fname),
+                         mimetype=result[0]['content_type'])
+
+    return make_response(("Unable to read data\n", 500))
 
 
 @celery.task
@@ -131,25 +154,15 @@ def analyse_video(fname, sha1):
     print('Starting FAKE analysis of video {}...'.format(fname))
     time.sleep(30)
 
-    import csv
-    ldir = os.path.dirname(fname)
-    csv_fname = os.path.join(ldir, 'output.csv')
-    with open(csv_fname, 'w') as fp:
-        w = csv.writer(fp)
-        w.writerow(['x', 'y', 'value'])
-        w.writerow([1.0, 2.0, 33.0])
-        w.writerow([3.0, 4.0, 42.0])
-
     # TODO: save as new file to table with own hash?
     # or does DeepLabCut assume some files to exist in specific dir?
-        
+
     # hash_digest = calculate_hash(open(csv_fname))
 
     # # Open database
     # con = db.get_db()
     # cur = con.cursor()
-    
-        
+
     print('Analysis done!')
     return {'result': 42,
             'file_id': sha1,
@@ -157,10 +170,31 @@ def analyse_video(fname, sha1):
 
 
 @celery.task
-def analyse_sleep(sleep_time):
+def analyse_sleep(fname, sleep_time):
     print('Sleeping for {} seconds...'.format(sleep_time))
     time.sleep(sleep_time)
-    return {'sleep_time': sleep_time}
+
+    # Create CSV file
+    import csv
+    ldir = os.path.dirname(fname)
+    csv_fname = os.path.join(ldir, 'output.csv')
+    with open(data_path(csv_fname), 'w') as fp:
+        w = csv.writer(fp)
+        w.writerow(['sleep', sleep_time])
+
+    # Calculate SHA1 from CSV file
+    hash_digest = calculate_hash(open(data_path(csv_fname), 'rb'))
+
+    # Open database
+    con = db.get_db()
+    cur = con.cursor()
+
+    # Add database entry for CSV file
+    cur.execute("REPLACE INTO files (filename, sha1, content_type) VALUES (?, ?, ?)",
+                (csv_fname, hash_digest, 'text/csv'))
+    con.commit()
+
+    return {'sleep_time': sleep_time, 'csv_file': hash_digest}
 
 
 @app.route('/analysis', methods=['POST'])
@@ -192,19 +226,20 @@ def start_analysis():
     found = cur.fetchone()
     if not found:
         return make_response(("Given file_id not found\n", 400))
-    hash_digest = found['sha1']
-    local_fname = local_path(hash_digest, found['filename'])
 
-    if not os.path.exists(local_fname):
+    hash_digest = found['sha1']
+    short_fname = found['filename']
+
+    if not os.path.exists(data_path(short_fname)):
         return make_response(("File no longer exists in server\n", 400))
 
     if analysis == 'sleep':
         sleep_time = request.form.get('time')
         if sleep_time is None:
             return make_response(("No time argument given\n", 400))
-        task = analyse_sleep.apply_async(args=(int(sleep_time), ))
+        task = analyse_sleep.apply_async(args=(short_fname, int(sleep_time)))
     elif analysis == 'video':
-        task = analyse_video.apply_async(args=(local_fname, hash_digest))
+        task = analyse_video.apply_async(args=(short_fname, hash_digest))
     else:
         return make_response(("Unknown analysis task '{}'\n".format(analysis)),
                              400)
