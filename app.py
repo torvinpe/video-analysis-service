@@ -169,7 +169,7 @@ def add_results_file(fname, content_type):
 
 
 @celery.task
-def analyse_video(fname, sha1):
+def analyse_video(fname):
     print('Starting analysis of video {}...'.format(fname))
 
     res_id = deeplabcut.analyze_videos(app.config['DLC_CONFIG'],
@@ -183,6 +183,21 @@ def analyse_video(fname, sha1):
     return {'csv_file': hash_digest}
 
 
+@celery.task
+def create_labeled_video(fname):
+    print('Creating labeled video for {}...'.format(fname))
+
+    res_id = deeplabcut.create_labeled_video(app.config['DLC_CONFIG'],
+                                             [data_path(fname)],
+                                             videotype='.mp4',
+                                             draw_skeleton=True)
+
+
+# TODO
+#    >>deeplabcut.triangulate(config_path3d, '/fullpath/videofolder', save_as_csv=True)
+#    >>deeplabcut.create_labeled_video_3d(config_path3d, ['/fullpath/videofolder']
+
+    
 @celery.task
 def analyse_sleep(fname, sleep_time):
     print('Sleeping for {} seconds...'.format(sleep_time))
@@ -233,18 +248,20 @@ def start_analysis():
         return make_response(("Given file_id not found\n", 400))
 
     hash_digest = found['sha1']
-    short_fname = found['filename']
+    fname = found['filename']
 
-    if not os.path.exists(data_path(short_fname)):
+    if not os.path.exists(data_path(fname)):
         return make_response(("File no longer exists in server\n", 400))
 
     if analysis == 'sleep':
         sleep_time = request.form.get('time')
         if sleep_time is None:
             return make_response(("No time argument given\n", 400))
-        task = analyse_sleep.apply_async(args=(short_fname, int(sleep_time)))
+        task = analyse_sleep.apply_async(args=(fname, int(sleep_time)))
     elif analysis == 'video':
-        task = analyse_video.apply_async(args=(short_fname, hash_digest))
+        task = analyse_video.apply_async(args=(fname,))
+    elif analysis == 'label':
+        task = create_labeled_video.apply_async(args=(fname,))
     else:
         return make_response(("Unknown analysis task '{}'\n".format(analysis)),
                              400)

@@ -66,8 +66,9 @@ a single unambiguous match.
 
 ## Delete file
 
-Should we also have this? There needs to anyway be some kind of clean-up of old
-files, e.g., after specific time, if running out of space, or similiar?
+**TODO** Should we also have this? There needs to anyway be some kind of
+clean-up of old files, e.g., after specific time, if running out of space, or
+similiar?
 
 DELETE `/file/<file_id>` ?
 
@@ -86,6 +87,16 @@ Parameters (multipart/form-data format):
 - `analysis` name of analysis
 
 The rest of the parameters can be used as arguments for the analysis.
+
+Currently supported values for `analysis` names:
+
+- `sleep`: dummy analysis that sleeps for number of seconds (given with `time`
+  parameter) and produces a CSV file with the number of seconds slept
+- `video`: runs `deeplabcut.analyze_videos` for given video file
+- `label`: runs `deeplabcut.create_labeled_video` for given video file
+- `triangulate`: **TODO** `deeplabcut.triangulate`
+- `label_3d`: **TODO** `deeplabcut.create_labeled_video_3d`
+
 
 Response (HTTP 200):
 
