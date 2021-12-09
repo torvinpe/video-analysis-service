@@ -1,3 +1,4 @@
+import deeplabcut
 import db
 import hashlib
 import io
@@ -35,6 +36,7 @@ app = Flask(__name__)
 app.config.update(
     DATABASE='db.sqlite3',
     DATA_FOLDER='/media/data/code/video-analysis-service/data',
+    DLC_CONFIG='/media/data/var/dlc/TestProject-Mats-2021-12-08/config.yaml',
     result_backend='redis://localhost:6379',
     CELERY_broker_url='redis://localhost:6379'
 )
@@ -149,24 +151,36 @@ def get_single_file(file_id):
     return make_response(("Unable to read data\n", 500))
 
 
+def add_results_file(fname, content_type):
+    # Calculate SHA1 from file
+    hash_digest = calculate_hash(open(data_path(fname), 'rb'))
+
+    # Open database
+    con = db.get_db()
+    cur = con.cursor()
+
+    # Add database entry for CSV file
+    cur.execute("REPLACE INTO files (filename, sha1, content_type) "
+                "VALUES (?, ?, ?)", (fname, hash_digest, content_type))
+    con.commit()
+    cur.close()
+
+    return hash_digest
+
+
 @celery.task
 def analyse_video(fname, sha1):
-    print('Starting FAKE analysis of video {}...'.format(fname))
-    time.sleep(30)
+    print('Starting analysis of video {}...'.format(fname))
 
-    # TODO: save as new file to table with own hash?
-    # or does DeepLabCut assume some files to exist in specific dir?
+    res_id = deeplabcut.analyze_videos(app.config['DLC_CONFIG'],
+                                       [data_path(fname)],
+                                       save_as_csv=True)
+    csv_fname = os.path.splitext(fname)[0] + res_id + '.csv'
+    assert os.path.exists(data_path(csv_fname))
 
-    # hash_digest = calculate_hash(open(csv_fname))
+    hash_digest = add_results_file(csv_fname, "text/csv")
 
-    # # Open database
-    # con = db.get_db()
-    # cur = con.cursor()
-
-    print('Analysis done!')
-    return {'result': 42,
-            'file_id': sha1,
-            'csv_file': 'foo'}
+    return {'csv_file': hash_digest}
 
 
 @celery.task
@@ -183,16 +197,7 @@ def analyse_sleep(fname, sleep_time):
         w.writerow(['sleep', sleep_time])
 
     # Calculate SHA1 from CSV file
-    hash_digest = calculate_hash(open(data_path(csv_fname), 'rb'))
-
-    # Open database
-    con = db.get_db()
-    cur = con.cursor()
-
-    # Add database entry for CSV file
-    cur.execute("REPLACE INTO files (filename, sha1, content_type) VALUES (?, ?, ?)",
-                (csv_fname, hash_digest, 'text/csv'))
-    con.commit()
+    hash_digest = add_results_file(csv_fname, "text/csv")
 
     return {'sleep_time': sleep_time, 'csv_file': hash_digest}
 
