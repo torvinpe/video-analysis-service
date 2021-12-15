@@ -7,11 +7,12 @@ pip install flask celery[redis]
 
 # Usage
 
-Important: `--concurrency=1` flag to celery so that it runs only one job at a time.
+Important: `--concurrency=1` flag to celery so that it runs only one job at a
+time. Flag `-P threads` is needed as some DeepLabCut processing uses multi-threading.
 
 ```bash
 sudo systemctl start redis
-celery -A app.celery worker --concurrency=1
+celery -A app.celery worker --concurrency=1 -P threads
 flask run  # in separate terminal
 ```
 
@@ -24,6 +25,13 @@ Testing upload (example):
 curl -F "file=@hello.txt" http://127.0.0.1:5000/file
 ```
 
+Note that [for DeepLabCut I had to reencode my videos][reencode], for example
+like this:
+
+```bash
+ffmpeg -i video.avi -c:v libx265 -preset fast -crf 18 video_reencoded.mp4
+```
+
 Start analysis (example):
 
 ```bash
@@ -34,6 +42,12 @@ Check results (example):
 
 ```bash
 curl http://127.0.0.1:5000/analysis/32355caf-f322-4b05-b1c2-878d1e9be272
+```
+
+Fetch resulting file (example):
+
+```bash
+curl http://127.0.0.1:5000/file/234c49f658aceaeb72f7c366ca386167150058d3 -o output.mp4
 ```
 
 
@@ -123,3 +137,6 @@ Response (ready, HTTP 200):
     }
 
 Files are given as hashes, which you can fetch with `GET /file/<sha1_hash>`
+
+
+[reencode]: https://deeplabcut.github.io/DeepLabCut/docs/recipes/io.html#tips-on-video-re-encoding-and-preprocessing

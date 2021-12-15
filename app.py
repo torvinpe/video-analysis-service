@@ -187,10 +187,24 @@ def analyse_video(fname):
 def create_labeled_video(fname):
     print('Creating labeled video for {}...'.format(fname))
 
-    res_id = deeplabcut.create_labeled_video(app.config['DLC_CONFIG'],
-                                             [data_path(fname)],
-                                             videotype='.mp4',
-                                             draw_skeleton=True)
+    from deeplabcut.utils import auxiliaryfunctions
+
+    cfg_fname = app.config['DLC_CONFIG']
+    deeplabcut.create_labeled_video(cfg_fname,
+                                    [data_path(fname)],
+                                    videotype='.mp4',
+                                    draw_skeleton=True)
+
+    cfg = auxiliaryfunctions.read_config(cfg_fname)
+    res_id, _ = auxiliaryfunctions.GetScorerName(
+        cfg, shuffle=1, trainFraction=cfg["TrainingFraction"][0])
+
+    video_fname = os.path.splitext(fname)[0] + res_id + '_labeled.mp4'
+    assert os.path.exists(data_path(video_fname))
+
+    hash_digest = add_results_file(video_fname, "video/mp4")
+
+    return {'labeled_video': hash_digest}
 
 
 # TODO
