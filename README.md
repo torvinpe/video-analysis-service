@@ -80,11 +80,7 @@ a single unambiguous match.
 
 ## Delete file
 
-**TODO** Should we also have this? There needs to anyway be some kind of
-clean-up of old files, e.g., after specific time, if running out of space, or
-similiar?
-
-DELETE `/file/<file_id>` ?
+DELETE `/file/<file_id>`
 
 
 ## Start analysis for file

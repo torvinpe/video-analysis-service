@@ -55,7 +55,9 @@ def calculate_hash(fp):
     hash = hashlib.sha1()
     while chunk := fp.read(8192):
         hash.update(chunk)
-    return hash.hexdigest()
+    result = hash.hexdigest()
+    assert len(result) == 40  # sanity check
+    return result
 
 
 def data_path(db_fname):
@@ -132,7 +134,7 @@ def get_all_files():
         return jsonify(get_fileinfo(None)), 200
 
 
-@app.route('/file/<file_id>')
+@app.route('/file/<file_id>', methods=['GET', 'DELETE'])
 def get_single_file(file_id):
     result = get_fileinfo(file_id)
     if len(result) == 0:
@@ -141,12 +143,31 @@ def get_single_file(file_id):
         return make_response(("Ambiguous id, matched more than one file!\n", 400))
 
     fname = result[0]['filename']
-    with open(data_path(fname), 'rb') as fp:
-        print('Returning file', fname)
-        bindata = fp.read()
-        return send_file(io.BytesIO(bindata),
-                         attachment_filename=os.path.basename(fname),
-                         mimetype=result[0]['content_type'])
+    real_fname = data_path(fname)
+
+    if request.method == 'DELETE':
+        sha1 = result[0]['sha1']
+        assert len(sha1) == 40  # sanity check
+        
+        con = db.get_db()
+        cur = con.cursor()
+        cur.execute("DELETE FROM files WHERE sha1 = ?", (result[0]['sha1'],))
+        con.commit()
+        cur.close()
+
+        try:
+            os.remove(real_fname)
+        except FileNotFoundError:
+            print('WARNING: file to be removed not found: {}'.format(real_fname))
+
+        return make_response(("Successfully deleted file {}\n".format(fname), 200))
+    else:
+        with open(real_fname, 'rb') as fp:
+            print('Returning file', fname)
+            bindata = fp.read()
+            return send_file(io.BytesIO(bindata),
+                             attachment_filename=os.path.basename(fname),
+                             mimetype=result[0]['content_type'])
 
     return make_response(("Unable to read data\n", 500))
 
