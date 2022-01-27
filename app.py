@@ -108,7 +108,8 @@ def handle_upload(request):
 def get_fileinfo(file_id):
     con = db.get_db()
     cur = con.cursor()
-    fields = ['sha1', 'filename', 'content_type']
+
+    fields = ['sha1', 'filename', 'content_type', 'created']
     sql_query = "SELECT {} FROM files".format(','.join(fields))
     if file_id is None:
         cur.execute(sql_query)
@@ -249,35 +250,21 @@ def analyse_sleep(fname, sleep_time):
     return {'sleep_time': sleep_time, 'csv_file': hash_digest}
 
 
-# def get_analysis_info(task_id):
-#     con = db.get_db()
-#     cur = con.cursor()
+def get_analysis_list():
+    con = db.get_db()
+    cur = con.cursor()
 
-#     cur.execute('SELECT id, task_id FROM analyses WHERE task_id LIKE ?', (task_id+'%',))
-#     found = cur.fetchone()
-#     if not found:
-#         return make_response(("Given task_id not found\n", 400))
+    fields = ['task_id', 'analysis_name', 'state', 'created']
+    cur.execute('SELECT id, {} FROM analyses'.format(', '.join(fields)))
 
-#     db_id = found['id']
-#     task_id = found['task_id']
-
-#     task = analyse_video.AsyncResult(task_id)
-#     state = task.state
-
-#     cur.execute('UPDATE analyses SET state=? WHERE id=?', (state, db_id))
-#     con.commit()
-
-#     state_json = {'state': task.state}
-#     if task.state == 'PENDING':
-#         return jsonify(state_json), 202
-#     elif task.state != 'FAILURE':
-#         return jsonify(task.info)
-#     else:
-#         return jsonify(state_json), 500
+    return [{f: row[f] for f in fields} for row in cur.fetchall()]
 
 
 @app.route('/analysis', methods=['GET', 'POST'])
 def start_analysis():
+    if request.method == 'GET':
+        return jsonify(get_analysis_list()), 200
+
     # Check arguments
     if 'file_id' not in request.form:
         return make_response(("Not file_id given\n", 400))
