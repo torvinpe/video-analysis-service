@@ -1,4 +1,3 @@
-import deeplabcut
 import db
 import hashlib
 import io
@@ -19,7 +18,8 @@ def make_celery(app):
     celery = Celery(
         app.import_name,
         backend=app.config['result_backend'],
-        broker=app.config['CELERY_broker_url']
+        broker=app.config['CELERY_broker_url'],
+        task_track_started=True
     )
     celery.conf.update(app.config)
 
@@ -43,12 +43,6 @@ app.config.update(
 celery = make_celery(app)
 
 db.init_app(app)
-
-# Database
-#
-# Table files
-# - filename, file path + name starting from DATA_FOLDER
-# - sha1, hash of file contents, should be unique
 
 
 def calculate_hash(fp):
@@ -148,7 +142,7 @@ def get_single_file(file_id):
     if request.method == 'DELETE':
         sha1 = result[0]['sha1']
         assert len(sha1) == 40  # sanity check
-        
+
         con = db.get_db()
         cur = con.cursor()
         cur.execute("DELETE FROM files WHERE sha1 = ?", (result[0]['sha1'],))
@@ -191,6 +185,8 @@ def add_results_file(fname, content_type):
 
 @celery.task
 def analyse_video(fname):
+    import deeplabcut
+
     print('Starting analysis of video {}...'.format(fname))
 
     res_id = deeplabcut.analyze_videos(app.config['DLC_CONFIG'],
@@ -206,6 +202,8 @@ def analyse_video(fname):
 
 @celery.task
 def create_labeled_video(fname):
+    import deeplabcut
+
     print('Creating labeled video for {}...'.format(fname))
 
     from deeplabcut.utils import auxiliaryfunctions
@@ -232,7 +230,6 @@ def create_labeled_video(fname):
 #    >>deeplabcut.triangulate(config_path3d, '/fullpath/videofolder', save_as_csv=True)
 #    >>deeplabcut.create_labeled_video_3d(config_path3d, ['/fullpath/videofolder']
 
-    
 @celery.task
 def analyse_sleep(fname, sleep_time):
     print('Sleeping for {} seconds...'.format(sleep_time))
@@ -252,15 +249,35 @@ def analyse_sleep(fname, sleep_time):
     return {'sleep_time': sleep_time, 'csv_file': hash_digest}
 
 
-@app.route('/analysis', methods=['POST'])
-def start_analysis():
-    # if request.method == 'GET':
-    #     i = celery.control.inspect()
-    #     print(i.scheduled())
-    #     print(i.active())
-    #     print(i.reserved())
-    #     return make_response(("OK", 200))
+# def get_analysis_info(task_id):
+#     con = db.get_db()
+#     cur = con.cursor()
 
+#     cur.execute('SELECT id, task_id FROM analyses WHERE task_id LIKE ?', (task_id+'%',))
+#     found = cur.fetchone()
+#     if not found:
+#         return make_response(("Given task_id not found\n", 400))
+
+#     db_id = found['id']
+#     task_id = found['task_id']
+
+#     task = analyse_video.AsyncResult(task_id)
+#     state = task.state
+
+#     cur.execute('UPDATE analyses SET state=? WHERE id=?', (state, db_id))
+#     con.commit()
+
+#     state_json = {'state': task.state}
+#     if task.state == 'PENDING':
+#         return jsonify(state_json), 202
+#     elif task.state != 'FAILURE':
+#         return jsonify(task.info)
+#     else:
+#         return jsonify(state_json), 500
+
+
+@app.route('/analysis', methods=['GET', 'POST'])
+def start_analysis():
     # Check arguments
     if 'file_id' not in request.form:
         return make_response(("Not file_id given\n", 400))
@@ -276,13 +293,11 @@ def start_analysis():
     cur = con.cursor()
 
     # Find file_id in database
-    file_exists = False
     cur.execute('SELECT filename, sha1 FROM files WHERE sha1 LIKE ?', (file_id+'%',))
     found = cur.fetchone()
     if not found:
         return make_response(("Given file_id not found\n", 400))
 
-    hash_digest = found['sha1']
     fname = found['filename']
 
     if not os.path.exists(data_path(fname)):
@@ -301,16 +316,41 @@ def start_analysis():
         return make_response(("Unknown analysis task '{}'\n".format(analysis)),
                              400)
 
-    return jsonify({'task_id': task.id}), 202
+    task_id = task.id
+    cur.execute("INSERT INTO analyses (task_id, analysis_name, state) VALUES (?, ?, ?)",
+                (task_id, analysis, "PENDING"))
+    con.commit()
+
+    return jsonify({'task_id': task_id}), 202
 
 
-@app.route('/analysis/<analysis_id>')
-def get_analysis(analysis_id):
-    task = analyse_video.AsyncResult(analysis_id)
-    state = {'state': task.state}
-    if task.state == 'PENDING':
-        return jsonify(state), 202
-    elif task.state != 'FAILURE':
+@app.route('/analysis/<task_id>')
+def get_analysis(task_id):
+    con = db.get_db()
+    cur = con.cursor()
+
+    cur.execute('SELECT id, task_id FROM analyses WHERE task_id LIKE ?', (task_id+'%',))
+    found = cur.fetchone()
+    if not found:
+        return make_response(("Given task_id not found\n", 400))
+
+    db_id = found['id']
+    task_id = found['task_id']
+
+    task = analyse_video.AsyncResult(task_id)
+    state = task.state
+
+    cur.execute('UPDATE analyses SET state=? WHERE id=?', (state, db_id))
+    con.commit()
+
+    state_json = {'state': task.state}
+    if task.state in ('PENDING', 'STARTED'):
+        return jsonify(state_json), 202
+    elif task.state == 'FAILURE':
+        return jsonify({'state': task.state,
+                        'exception': repr(task.result),
+                        'traceback': task.traceback}), 500
+    elif task.state == 'SUCCESS':
         return jsonify(task.info)
     else:
-        return jsonify(state), 500
+        return make_response(("Unexpected task state: '{}'\n".format(task.state)), 500)
