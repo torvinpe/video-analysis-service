@@ -77,7 +77,7 @@ def handle_upload(request):
 
     # Check if SHA1 already present in database
     file_exists = False
-    cur.execute("SELECT filename FROM files WHERE sha1=?", (hash_digest,))
+    cur.execute("SELECT filename FROM files WHERE file_id=?", (hash_digest,))
     found = cur.fetchone()
     if found:
         file_exists = os.path.exists(data_path(found['filename']))
@@ -94,11 +94,11 @@ def handle_upload(request):
         fp.seek(0)
         fp.save(data_path(fname))
 
-        cur.execute("REPLACE INTO files (filename, sha1, content_type) VALUES (?, ?, ?)",
+        cur.execute("REPLACE INTO files (filename, file_id, content_type) VALUES (?, ?, ?)",
                     (fname, hash_digest, content_type))
         con.commit()
     else:
-        print('File {} with sha1 {} already found in database'.format(
+        print('File {} with file_id {} already found in database'.format(
             fname, hash_digest))
 
     cur.close()
@@ -109,12 +109,12 @@ def get_fileinfo(file_id):
     con = db.get_db()
     cur = con.cursor()
 
-    fields = ['sha1', 'filename', 'content_type', 'created']
+    fields = ['file_id', 'filename', 'content_type', 'created']
     sql_query = "SELECT {} FROM files".format(','.join(fields))
     if file_id is None:
         cur.execute(sql_query)
     else:
-        cur.execute(sql_query + " WHERE sha1 LIKE ? ", (file_id + '%',))
+        cur.execute(sql_query + " WHERE file_id LIKE ? ", (file_id + '%',))
     result = [{f: row[f] for f in fields}
               for row in cur.fetchall()]
     cur.close()
@@ -141,12 +141,12 @@ def get_single_file(file_id):
     real_fname = data_path(fname)
 
     if request.method == 'DELETE':
-        sha1 = result[0]['sha1']
+        sha1 = result[0]['file_id']
         assert len(sha1) == 40  # sanity check
 
         con = db.get_db()
         cur = con.cursor()
-        cur.execute("DELETE FROM files WHERE sha1 = ?", (result[0]['sha1'],))
+        cur.execute("DELETE FROM files WHERE file_id = ?", (result[0]['file_id'],))
         con.commit()
         cur.close()
 
@@ -176,7 +176,7 @@ def add_results_file(fname, content_type):
     cur = con.cursor()
 
     # Add database entry for CSV file
-    cur.execute("REPLACE INTO files (filename, sha1, content_type) "
+    cur.execute("REPLACE INTO files (filename, file_id, content_type) "
                 "VALUES (?, ?, ?)", (fname, hash_digest, content_type))
     con.commit()
     cur.close()
@@ -254,7 +254,7 @@ def get_analysis_list():
     con = db.get_db()
     cur = con.cursor()
 
-    fields = ['task_id', 'analysis_name', 'state', 'created']
+    fields = ['task_id', 'file_id', 'analysis_name', 'state', 'created']
     cur.execute('SELECT id, {} FROM analyses'.format(', '.join(fields)))
 
     return [{f: row[f] for f in fields} for row in cur.fetchall()]
@@ -280,7 +280,7 @@ def start_analysis():
     cur = con.cursor()
 
     # Find file_id in database
-    cur.execute('SELECT filename, sha1 FROM files WHERE sha1 LIKE ?', (file_id+'%',))
+    cur.execute('SELECT filename, file_id FROM files WHERE file_id LIKE ?', (file_id+'%',))
     found = cur.fetchone()
     if not found:
         return make_response(("Given file_id not found\n", 400))
@@ -304,8 +304,8 @@ def start_analysis():
                              400)
 
     task_id = task.id
-    cur.execute("INSERT INTO analyses (task_id, analysis_name, state) VALUES (?, ?, ?)",
-                (task_id, analysis, "PENDING"))
+    cur.execute("INSERT INTO analyses (task_id, file_id, analysis_name, state) "
+                "VALUES (?, ?, ?, ?)", (task_id, found['file_id'], analysis, "PENDING"))
     con.commit()
 
     return jsonify({'task_id': task_id}), 202
@@ -316,7 +316,7 @@ def get_analysis(task_id):
     con = db.get_db()
     cur = con.cursor()
 
-    cur.execute('SELECT id, task_id FROM analyses WHERE task_id LIKE ?', (task_id+'%',))
+    cur.execute('SELECT id, task_id, state FROM analyses WHERE task_id LIKE ?', (task_id+'%',))
     found = cur.fetchone()
     if not found:
         return make_response(("Given task_id not found\n", 400))
@@ -327,8 +327,9 @@ def get_analysis(task_id):
     task = analyse_video.AsyncResult(task_id)
     state = task.state
 
-    cur.execute('UPDATE analyses SET state=? WHERE id=?', (state, db_id))
-    con.commit()
+    if state != found['state']:
+        cur.execute('UPDATE analyses SET state=? WHERE id=?', (state, db_id))
+        con.commit()
 
     state_json = {'state': task.state}
     if task.state in ('PENDING', 'STARTED'):

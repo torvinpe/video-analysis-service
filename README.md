@@ -1,3 +1,6 @@
+**Note:** Main code repository is here:
+<https://github.com/mvsjober/video-analysis-service>
+
 # Installation
 
 ```bash
@@ -111,6 +114,15 @@ Currently supported values for `analysis` names:
 Response (HTTP 200):
 
     { analysis_id: 42 }
+
+## List all analyses files
+
+GET `/analysis`
+
+**NOTE:** the state (PENDING, STARTED, FAILURE, SUCCESS) may be old as this
+command does not query Celery for the current state. The state in the database
+is updated only when calling GET `/analysis/<analysis_id` explicitly for a
+specific analysis.
 
 ## Get analysis
 

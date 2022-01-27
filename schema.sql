@@ -4,13 +4,14 @@ CREATE TABLE files (
   filename TEXT NOT NULL,
   content_type TEXT,
   created TEXT DEFAULT CURRENT_TIMESTAMP,
-  sha1 TEXT UNIQUE
+  file_id TEXT UNIQUE
 );
 
 DROP TABLE IF EXISTS analyses;
 CREATE TABLE analyses (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-  task_id TEXT,
+  task_id TEXT UNIQUE,
+  file_id TEXT,
   analysis_name TEXT,
   state TEXT,
   created TEXT DEFAULT CURRENT_TIMESTAMP
