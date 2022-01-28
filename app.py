@@ -3,10 +3,14 @@ import hashlib
 import io
 import os
 import time
+import yaml
+import sys
 
 from celery import Celery
 from flask import Flask, request, make_response, jsonify, send_file
 from werkzeug.utils import secure_filename
+
+CONFIG_FILE = "config.yaml"
 
 
 # Celery support with help from these links:
@@ -33,15 +37,17 @@ def make_celery(app):
 
 
 app = Flask(__name__)
-app.config.update(
-    DATABASE='db.sqlite3',
-    DATA_FOLDER='/media/data/code/video-analysis-service/data',
-    DLC_CONFIG='/media/data/var/dlc/TestProject-Mats-2021-12-08/config.yaml',
-    result_backend='redis://localhost:6379',
-    CELERY_broker_url='redis://localhost:6379'
-)
-celery = make_celery(app)
 
+try:
+    with open(CONFIG_FILE) as fp:
+        yaml_config = yaml.safe_load(fp)
+        app.config.update(yaml_config)
+except FileNotFoundError:
+    print('\nERROR: config file "{}" not found! You need to create a config file.\n'
+          'See the example in "config.yaml.example".\n'.format(CONFIG_FILE))
+    sys.exit(1)
+
+celery = make_celery(app)
 db.init_app(app)
 
 

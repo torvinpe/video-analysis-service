@@ -1,0 +1,5 @@
+DATABASE: 'db.sqlite3'
+DATA_FOLDER: '/media/data/code/video-analysis-service/data'
+DLC_CONFIG: '/media/data/var/dlc/TestProject-Mats-2021-12-08/config.yaml'
+result_backend: 'redis://localhost:6379'
+CELERY_broker_url: 'redis://localhost:6379'
