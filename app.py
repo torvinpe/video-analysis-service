@@ -425,3 +425,10 @@ def clean_up_command():
                                                      row['created']))
             cur.execute('DELETE FROM files WHERE id = ?', (row['id'],))
             con.commit()
+
+            real_fname = data_path(row['filename'])
+            try:
+                os.remove(real_fname)
+            except FileNotFoundError:
+                print('WARNING: file to be removed not found: {}'.format(real_fname))
+
