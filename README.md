@@ -54,6 +54,10 @@ curl http://127.0.0.1:5000/file/234c49f658aceaeb72f7c366ca386167150058d3 -o outp
 ```
 
 
+# Deployment
+
+There are some [notes on deployment on a server in a separate file](deployment.md).
+
 # API
 
 ## Upload file for analysis

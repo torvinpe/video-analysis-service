@@ -1,5 +1,7 @@
 # Deployment
 
+## Web server
+
 Install gunicorn (`pip install gunicorn`), and:
 
 ```bash
@@ -34,3 +36,15 @@ Password file can be created with `htpasswd` command (`yum install httpd-tools`)
 ```bash
 htpasswd -c /etc/nginx/.htpasswd username
 ```
+
+## Clean up
+
+A clean up process can be run with the command:
+
+```bash
+flask clean-up
+```
+
+It will delete old files and analyses based on the `clean_up_files_days` and
+`clean_up_analyses_days` config options.  One can for example run this command
+in a cron job every night.

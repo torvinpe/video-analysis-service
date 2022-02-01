@@ -378,3 +378,50 @@ def get_analysis(task_id):
         return jsonify(task.info)
     else:
         return make_response(("Unexpected task state: '{}'\n".format(task.state)), 500)
+
+
+# Handle clean up, this can be run from command line with "flask clean-up"
+# Deletes files older than config option clean_up_files_days
+# Deletes analyses older than clean_up_analyses_days
+@app.cli.command('clean-up')
+def clean_up_command():
+    clean_up_files_days = app.config['clean_up_files_days']
+    clean_up_analyses_days = app.config['clean_up_analyses_days']
+
+    print('Running clean up...')
+
+    con = db.get_db()
+    cur = con.cursor()
+
+    cur.execute('SELECT * FROM analyses WHERE created < DATETIME("now", ?)',
+                ('-{} days'.format(clean_up_analyses_days),))
+
+    for row in cur.fetchall():
+        task = analyse_video.AsyncResult(row['task_id'])
+        if task.state in ('PENDING', 'STARTED'):
+            print('WARNING: not deleting old task {} as status is {}'.format(
+                row['task_id'], task.state))
+        else:
+            print('DELETING {} task {}, {}, {} ({})'.format(
+                row['analysis_name'], row['task_id'], row['file_id'][:10], row['state'],
+                row['created']))
+            cur.execute('DELETE FROM analyses WHERE id = ?', (row['id'],))
+            con.commit()
+            task.forget()
+
+    cur.execute('SELECT * FROM files WHERE created < DATETIME("now", ?)',
+                ('-{} days'.format(clean_up_files_days),))
+
+    for row in cur.fetchall():
+        cur.execute('SELECT task_id FROM analyses WHERE file_id=?', (row['file_id'],))
+        rows = cur.fetchall()
+        if len(rows) > 0:
+            print('WARNING: not deleting old file {} as it still has analyses:'.format(
+                row['file_id']))
+            for r in rows:
+                print('  ', r[0])
+        else:
+            print('DELETING file {}, {} ({})'.format(row['file_id'], row['filename'],
+                                                     row['created']))
+            cur.execute('DELETE FROM files WHERE id = ?', (row['id'],))
+            con.commit()

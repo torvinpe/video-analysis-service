@@ -2,6 +2,8 @@ DATABASE: 'db.sqlite3'
 DATA_FOLDER: '/media/data/code/video-analysis-service/data'
 result_backend: 'redis://localhost:6379'
 CELERY_broker_url: 'redis://localhost:6379'
+clean_up_files_days: 30
+clean_up_analyses_days: 7
 DLC_MODELS:
   mats-test: '/media/data/var/dlc/TestProject-Mats-2021-12-08/config.yaml'
   petra-malli: '/media/data/var/dlc/DLC-malli/config.yaml'
