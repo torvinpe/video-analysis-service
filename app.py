@@ -17,7 +17,7 @@ CONFIG_FILE = "config.yaml"
 # https://flask.palletsprojects.com/en/2.0.x/patterns/celery/
 # https://github.com/miguelgrinberg/flask-celery-example/blob/master/app.py
 
-
+# Make celery object for communicating with task queue service
 def make_celery(app):
     celery = Celery(
         app.import_name,
@@ -38,6 +38,7 @@ def make_celery(app):
 
 app = Flask(__name__)
 
+# Read config file
 try:
     with open(CONFIG_FILE) as fp:
         yaml_config = yaml.safe_load(fp)
@@ -51,6 +52,7 @@ celery = make_celery(app)
 db.init_app(app)
 
 
+# Calculate sha1 hash for given file pointer
 def calculate_hash(fp):
     hash = hashlib.sha1()
     while chunk := fp.read(8192):
@@ -60,10 +62,12 @@ def calculate_hash(fp):
     return result
 
 
+# Translate from short file path to real absolute path on server
 def data_path(db_fname):
     return os.path.join(app.config['DATA_FOLDER'], db_fname)
 
 
+# Handle file upload
 def handle_upload(request):
     # Check if we are receiving a valid file upload (multipart/form-data)
     if 'file' not in request.files:
@@ -111,13 +115,14 @@ def handle_upload(request):
     return jsonify({'file_id': hash_digest}), 202
 
 
+# Get file info from sqlite database
 def get_fileinfo(file_id):
     con = db.get_db()
     cur = con.cursor()
 
     fields = ['file_id', 'filename', 'content_type', 'created']
     sql_query = "SELECT {} FROM files".format(','.join(fields))
-    if file_id is None:
+    if file_id is None:  # if no file_id is given, we query ALL files
         cur.execute(sql_query)
     else:
         cur.execute(sql_query + " WHERE file_id LIKE ? ", (file_id + '%',))
@@ -127,6 +132,9 @@ def get_fileinfo(file_id):
     return result
 
 
+# Handle /file API endpoint
+# POST: upload file
+# GET: get list of all files on server
 @app.route('/file', methods=['GET', 'POST'])
 def get_all_files():
     if request.method == 'POST':
@@ -135,6 +143,9 @@ def get_all_files():
         return jsonify(get_fileinfo(None)), 200
 
 
+# Handle /file/<file_id> API endpoint
+# GET: download single file
+# DELETE: single file
 @app.route('/file/<file_id>', methods=['GET', 'DELETE'])
 def get_single_file(file_id):
     result = get_fileinfo(file_id)
@@ -173,6 +184,7 @@ def get_single_file(file_id):
     return make_response(("Unable to read data\n", 500))
 
 
+# Add a file created by DeepLabCut to sqlite database (not uploaded from user)
 def add_results_file(fname, content_type):
     # Calculate SHA1 from file
     hash_digest = calculate_hash(open(data_path(fname), 'rb'))
@@ -190,13 +202,13 @@ def add_results_file(fname, content_type):
     return hash_digest
 
 
+# Actual task for analysing video with DeepLabCut
 @celery.task
-def analyse_video(fname):
+def analyse_video(fname, cfg_fname):
     import deeplabcut
 
-    print('Starting analysis of video {}...'.format(fname))
-
-    res_id = deeplabcut.analyze_videos(app.config['DLC_CONFIG'],
+    print('Starting analysis of video {} with model {}.'.format(fname, cfg_fname))
+    res_id = deeplabcut.analyze_videos(cfg_fname,
                                        [data_path(fname)],
                                        save_as_csv=True)
     csv_fname = os.path.splitext(fname)[0] + res_id + '.csv'
@@ -207,15 +219,15 @@ def analyse_video(fname):
     return {'csv_file': hash_digest}
 
 
+# Task for labelling video with DeepLabCut
 @celery.task
-def create_labeled_video(fname):
+def create_labeled_video(fname, cfg_fname):
     import deeplabcut
 
-    print('Creating labeled video for {}...'.format(fname))
+    print('Creating labeled video for {} with model {}.'.format(fname, cfg_fname))
 
     from deeplabcut.utils import auxiliaryfunctions
 
-    cfg_fname = app.config['DLC_CONFIG']
     deeplabcut.create_labeled_video(cfg_fname,
                                     [data_path(fname)],
                                     videotype='.mp4',
@@ -237,6 +249,8 @@ def create_labeled_video(fname):
 #    >>deeplabcut.triangulate(config_path3d, '/fullpath/videofolder', save_as_csv=True)
 #    >>deeplabcut.create_labeled_video_3d(config_path3d, ['/fullpath/videofolder']
 
+
+# Dummy task for testing
 @celery.task
 def analyse_sleep(fname, sleep_time):
     print('Sleeping for {} seconds...'.format(sleep_time))
@@ -256,6 +270,7 @@ def analyse_sleep(fname, sleep_time):
     return {'sleep_time': sleep_time, 'csv_file': hash_digest}
 
 
+# Get list of submitted analyses from sqlite database
 def get_analysis_list():
     con = db.get_db()
     cur = con.cursor()
@@ -266,6 +281,9 @@ def get_analysis_list():
     return [{f: row[f] for f in fields} for row in cur.fetchall()]
 
 
+# Handle /analysis API endpoint
+# GET: get list of submitted analyses
+# POST: add new analysis
 @app.route('/analysis', methods=['GET', 'POST'])
 def start_analysis():
     if request.method == 'GET':
@@ -276,6 +294,8 @@ def start_analysis():
         return make_response(("Not file_id given\n", 400))
     file_id = request.form['file_id']
     analysis = request.form.get('analysis')
+
+    dlc_model = request.form.get('model')
 
     if analysis is None:
         return make_response(("No analysis task given\n", 400))
@@ -301,10 +321,18 @@ def start_analysis():
         if sleep_time is None:
             return make_response(("No time argument given\n", 400))
         task = analyse_sleep.apply_async(args=(fname, int(sleep_time)))
-    elif analysis == 'video':
-        task = analyse_video.apply_async(args=(fname,))
-    elif analysis == 'label':
-        task = create_labeled_video.apply_async(args=(fname,))
+    elif analysis in ('video', 'label'):
+        if dlc_model is None:
+            return make_response(("No model argument given. Supported models: {}.\n".format(
+                ', '.join(app.config['DLC_MODELS'].keys())), 400))
+        if dlc_model not in app.config['DLC_MODELS']:
+            return make_response(("No model named '{}' found. Supported models: {}.\n".format(
+                dlc_model, ', '.join(app.config['DLC_MODELS'].keys())), 400))
+        dlc_model_path = app.config['DLC_MODELS'][dlc_model]
+        if analysis == 'video':
+            task = analyse_video.apply_async(args=(fname, dlc_model_path))
+        else:
+            task = create_labeled_video.apply_async(args=(fname, dlc_model_path))
     else:
         return make_response(("Unknown analysis task '{}'\n".format(analysis)),
                              400)
@@ -317,6 +345,8 @@ def start_analysis():
     return jsonify({'task_id': task_id}), 202
 
 
+# Handle /analysis/<task_id> endpoint
+# Get status from analysis in progress, returns results if analysis is done
 @app.route('/analysis/<task_id>')
 def get_analysis(task_id):
     con = db.get_db()
