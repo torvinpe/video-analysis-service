@@ -19,6 +19,8 @@ server {
     auth_basic "Password";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
+    client_max_body_size 50M;
+
     location / {
         proxy_pass         http://127.0.0.1:4000/;
         proxy_redirect     off;
