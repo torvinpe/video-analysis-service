@@ -1,0 +1,15 @@
+[Unit]
+Description=Celery service for Älylatu API
+After=network.target
+Requires=redis.service
+
+[Service]
+WorkingDirectory=/home/cloud-user/code/video-analysis-service
+ExecStart=/home/cloud-user/.local/bin/celery -A app.celery worker --concurrency=1 -P threads
+Restart=always
+RestartSec=10
+User=cloud-user
+Group=cloud-user
+
+[Install]
+WantedBy=multi-user.target

@@ -102,17 +102,23 @@ Parameters (multipart/form-data format):
 
 - `file_id` file id as received when uploading file
 - `analysis` name of analysis
+- `model` name of model
 
 The rest of the parameters can be used as arguments for the analysis.
 
 Currently supported values for `analysis` names:
 
-- `sleep`: dummy analysis that sleeps for number of seconds (given with `time`
-  parameter) and produces a CSV file with the number of seconds slept
 - `video`: runs `deeplabcut.analyze_videos` for given video file
 - `label`: runs `deeplabcut.create_labeled_video` for given video file
+- `image`: runs `deeplabcut.analyze_time_lapse_frames`for given image file
+- `label-image`: label given image file using OpenCV
 - `triangulate`: **TODO** `deeplabcut.triangulate`
 - `label_3d`: **TODO** `deeplabcut.create_labeled_video_3d`
+
+Currently supported values for `model` names:
+
+- `wassu-cam0`
+- `prone-shooting`
 
 
 Response (HTTP 200):
