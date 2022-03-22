@@ -60,11 +60,12 @@ CentOS.
 There are two service files in the `system` directory: `celery.service` and
 `gunicorn.service`.  First edit them so that the paths are correct.
 
-Next copy the service files to where you system's service files should be. This
+Next copy the service files to where your system's service files should be. This
 is `/usr/local/lib/systemd/system/` on CentOS, and `/etc/systemd/system` on some
 Ubuntu systems.
 
 ```bash
+sudo mkdir -p /usr/local/lib/systemd/system/
 sudo cp system/*.service /usr/local/lib/systemd/system/
 ```
 
