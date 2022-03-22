@@ -118,7 +118,7 @@ Currently supported values for `analysis` names:
 Currently supported values for `model` names:
 
 - `wassu-cam0`
-- `prone-shooting
+- `prone-shooting`
 
 
 Response (HTTP 200):
