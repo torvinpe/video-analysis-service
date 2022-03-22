@@ -114,7 +114,11 @@ Currently supported values for `analysis` names:
 - `label-image`: label given image file using OpenCV
 - `triangulate`: **TODO** `deeplabcut.triangulate`
 - `label_3d`: **TODO** `deeplabcut.create_labeled_video_3d`
-- 
+
+Currently supported values for `model` names:
+
+- `wassu-cam0`
+- `prone-shooting
 
 
 Response (HTTP 200):
