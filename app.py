@@ -211,6 +211,7 @@ def analyse_video(fname, cfg_fname):
     res_id = deeplabcut.analyze_videos(cfg_fname,
                                        [data_path(fname)],
                                        save_as_csv=True)
+    print(res_id)
     csv_fname = os.path.splitext(fname)[0] + res_id + '.csv'
     assert os.path.exists(data_path(csv_fname))
 
@@ -218,6 +219,27 @@ def analyse_video(fname, cfg_fname):
 
     return {'csv_file': hash_digest}
 
+@celery.task
+def analyse_image(fname, cfg_fname):
+    import deeplabcut
+    
+    print('Starting analysis of image {} with model {}.'.format(fname, cfg_fname))
+    
+    print(data_path(fname))
+    
+    res_id = deeplabcut.analyze_time_lapse_frames(cfg_fname,
+                                       [data_path(fname)][0],
+                                       frametype='.jpg',
+                                       save_as_csv=True)
+    print(res_id)
+    
+    csv_fname = os.path.splitext(fname)[0] + res_id + '.csv'
+    print(csv_fname)
+    assert os.path.exists(data_path(csv_fname))
+    
+    hash_digest = add_results_file(csv_fname, "text/csv")
+    
+    return {'csv_file': hash_digest}
 
 # Task for labelling video with DeepLabCut
 @celery.task
@@ -238,6 +260,7 @@ def create_labeled_video(fname, cfg_fname):
         cfg, shuffle=1, trainFraction=cfg["TrainingFraction"][0])
 
     video_fname = os.path.splitext(fname)[0] + res_id + '_labeled.mp4'
+    print(video_fname)
     assert os.path.exists(data_path(video_fname))
 
     hash_digest = add_results_file(video_fname, "video/mp4")
@@ -249,6 +272,92 @@ def create_labeled_video(fname, cfg_fname):
 #    >>deeplabcut.triangulate(config_path3d, '/fullpath/videofolder', save_as_csv=True)
 #    >>deeplabcut.create_labeled_video_3d(config_path3d, ['/fullpath/videofolder']
 
+# Task for triangulate 3D coordinates
+@celery.task
+def traingulate(fname1, fname2, cfg_3d_name):
+    import deeplabcut
+    
+    print('Creating 3D coordinates for {} and {} with model {}.'.format(fname1, fname2, cfg_3d_name))
+    
+    res_id = deeplabcut.triangulate(cfg_3d_name, [data_path(fname1), data_path(fname2)])
+    
+    print(res_id)
+    
+    csv_fname = os.path.splittext
+    
+    print(csv_fname)
+    assert os.path.exists(data_path(csv_fname))
+    
+    hash_digest = add_results_file(csv_fname, "text/csv")
+    
+    return {'csv_file': hash_digest}
+     
+
+
+@celery.task
+def label_image(fname, cfg_fname):
+    import deeplabcut
+    import cv2
+    import os
+    
+    print('Creating labeled image {} with model {}.'.format(fname, cfg_fname))
+    image_path = data_path(fname)
+    folder_path = os.path.dirname(image_path)
+    print(folder_path)
+    files = os.listdir(folder_path)
+
+    for file in files:
+        if file.endswith(".csv"):
+            with open(folder_path + "/" + file, mode='r', encoding='utf-8') as f:
+                lines = f.readlines()
+                i = 0
+                for line in lines:
+                    if i >= 3:
+                        info = line.split(",")
+                        #image name
+                        image_name = fname.split("/")[1]
+                        print(image_name)
+                        #read detected points
+                        piippu1_x = float(info[1])
+                        piippu1_y = float(info[2])
+                        piippu2_x = float(info[4])
+                        piippu2_y = float(info[5])
+                        haara_x =  float(info[7])
+                        haara_y = float(info[8])
+                        vasen_x = float(info[10])
+                        vasen_y = float(info[11])
+                        oikea_x = float(info[13])
+                        oikea_y = float(info[14])
+
+                        #read image
+                        image = cv2.imread(image_path)
+                    
+                        #create points, color and thickness
+                        piippu1 = (int(piippu1_x), int(piippu1_y))
+                        piippu2 = (int(piippu2_x), int(piippu2_y))
+                        haara = (int(haara_x), int(haara_y))
+                        vasen = (int(vasen_x), int(vasen_y))
+                        oikea = (int(oikea_x), int(oikea_y))
+                        color = (0, 255, 0)
+                        thickness = 4
+                    
+                        #draw lines to image
+                        image = cv2.line(image, piippu1, piippu2, color, thickness)
+                        image = cv2.line(image, piippu2, haara, color, thickness)
+                        image = cv2.line(image, haara, vasen, color, thickness)
+                        image = cv2.line(image, haara, oikea, color, thickness)
+                        
+                        image_name = folder_path + "/" + "labeled_" + image_name 
+                        print(image_name)
+                        #save image 
+                        cv2.imwrite(image_name, image)
+                    
+                    i = i + 1
+    
+    assert os.path.exists(data_path(image_name))
+    hash_digest = add_results_file(image_name, "image/jpg")
+    
+    return {'labeled_image': hash_digest}
 
 # Dummy task for testing
 @celery.task
@@ -292,13 +401,23 @@ def start_analysis():
     # Check arguments
     if 'file_id' not in request.form:
         return make_response(("Not file_id given\n", 400))
+   
     file_id = request.form['file_id']
+    if file_id =='':
+    	return make_response(("Not file_id given\n", 400))
+    	
     analysis = request.form.get('analysis')
 
     dlc_model = request.form.get('model')
 
     if analysis is None:
         return make_response(("No analysis task given\n", 400))
+        
+    if analysis == '':
+    	return make_response(("No analysis task given\n", 400))
+    	
+    if dlc_model == '':
+    	return make_response(("No model task given\n", 400))
     analysis = analysis.lower()
 
     # Open database
@@ -321,7 +440,7 @@ def start_analysis():
         if sleep_time is None:
             return make_response(("No time argument given\n", 400))
         task = analyse_sleep.apply_async(args=(fname, int(sleep_time)))
-    elif analysis in ('video', 'label'):
+    elif analysis in ('video', 'label', 'image'):
         if dlc_model is None:
             return make_response(("No model argument given. Supported models: {}.\n".format(
                 ', '.join(app.config['DLC_MODELS'].keys())), 400))
@@ -331,8 +450,13 @@ def start_analysis():
         dlc_model_path = app.config['DLC_MODELS'][dlc_model]
         if analysis == 'video':
             task = analyse_video.apply_async(args=(fname, dlc_model_path))
+        elif analysis == 'image':
+            task = analyse_video.apply_async(args=(fname, dlc_model_path))
         else:
             task = create_labeled_video.apply_async(args=(fname, dlc_model_path))
+    elif analysis == 'label-image':
+        dlc_model_path = app.config['DLC_MODELS'][dlc_model]
+        task = label_image.apply_async(args=(fname, dlc_model_path))
     else:
         return make_response(("Unknown analysis task '{}'\n".format(analysis)),
                              400)
