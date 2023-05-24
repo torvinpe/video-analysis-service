@@ -4,7 +4,7 @@
 # Installation
 
 ```bash
-sudo yum install redis
+sudo apt-get install redis
 pip install flask celery[redis]
 ```
 
