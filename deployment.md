@@ -7,6 +7,7 @@ Install gunicorn (`pip install gunicorn`), and:
 ```bash
 gunicorn -w 4 -b 127.0.0.1:4000 app:app
 ```
+Install nginx (`sudo apt install nginx`)
 
 Example nginx config (`/etc/nginx/conf.d/proxy-flask.conf`):
 
