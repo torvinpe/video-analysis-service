@@ -38,7 +38,7 @@ ffmpeg -i video.avi -c:v libx265 -preset fast -crf 18 video_reencoded.mp4
 Start analysis (example):
 
 ```bash
-curl -d file_id=7b4758d4 -d analysis=sleep -d time=10 http://127.0.0.1:5000/analysis
+curl -d file_id=7b4758d4 -d analysis=video -d model=wassu-cam0 http://127.0.0.1:5000/analysis
 ```
 
 Check results (example):
