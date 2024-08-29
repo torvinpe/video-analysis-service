@@ -754,6 +754,12 @@ def label_image(fname, cfg_fname):
                         vasen_y = float(info[11])
                         oikea_x = float(info[13])
                         oikea_y = float(info[14])
+                        olkapaa_x = float(info[16])
+                        olkapaa_y = float(info[17])
+                        kyynarpaa_x = float(info[19])
+                        kyynarpaa_y = float(info[20])
+                        ranne_x = float(info[22])
+                        ranne_y = float(info[23])
 
                         #read image
                         image = cv2.imread(image_path)
@@ -764,14 +770,36 @@ def label_image(fname, cfg_fname):
                         haara = (int(haara_x), int(haara_y))
                         vasen = (int(vasen_x), int(vasen_y))
                         oikea = (int(oikea_x), int(oikea_y))
+                        olkapaa = (int(olkapaa_x), int(olkapaa_y))
+                        kyynarpaa = (int(kyynarpaa_x), int(kyynarpaa_y))
+                        ranne = (int(ranne_x), int(ranne_y))
+                        
                         color = (0, 255, 0)
+                        color_2 = (90, 0, 255)
                         thickness = 4
+                        thickness_2 = 2
+                        thickness_3 = -1
+                        circle_radius = 15
+                        jakaja = (olkapaa_x - ranne_x)
+                        image = cv2.circle(image, kyynarpaa, circle_radius, color_2, thickness_3)
+                        if jakaja !=0:
+                            k = (olkapaa_y - ranne_y) / jakaja
+                            alku_y = ranne_y - 70
+                            alku_x = ((alku_y - ranne_y) / k) + ranne_x
+                            alku = (int(alku_x), int(alku_y))
+                            loppu_y = olkapaa_y + 70
+                            loppu_x = ((loppu_y - olkapaa_y) / k) + olkapaa_x
+                            loppu = (int(loppu_x), int(loppu_y))
+                            image = cv2.line(image, alku, loppu, color, thickness_2)
+                        
                     
                         #draw lines to image
                         image = cv2.line(image, piippu1, piippu2, color, thickness)
                         image = cv2.line(image, piippu2, haara, color, thickness)
                         image = cv2.line(image, haara, vasen, color, thickness)
                         image = cv2.line(image, haara, oikea, color, thickness)
+                        #image = cv2.line(image, olkapaa, ranne, color, thickness_2)
+                        
                         
                         image_name = folder_path + "/" + "labeled_" + image_name 
                         print(image_name)
