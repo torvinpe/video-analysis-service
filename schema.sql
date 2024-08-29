@@ -17,3 +17,4 @@ CREATE TABLE analyses (
   state TEXT,
   created TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
