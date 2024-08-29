@@ -1,9 +1,13 @@
 DATABASE: 'db.sqlite3'
-DATA_FOLDER: '/media/data/code/video-analysis-service/data'
+DATA_FOLDER: '/home/vuotech/api/data'
 result_backend: 'redis://localhost:6379'
 CELERY_broker_url: 'redis://localhost:6379'
 clean_up_files_days: 30
 clean_up_analyses_days: 7
 DLC_MODELS:
-  mats-test: '/media/data/var/dlc/TestProject-Mats-2021-12-08/config.yaml'
-  petra-malli: '/media/data/var/dlc/DLC-malli/config.yaml'
+  wassu-cam0: '/home/vuotech/DLC-projects/cam0_laajennos/config.yaml'
+  wassu-cam2: '/home/vuotech/DLC-projects/cam2-v3/config.yaml'
+  prone-shooting: '/home/vuotech/DLC-projects/makuuammunta_2/config.yaml'
+  3D: '/home/vuotech/DLC-projects/3D-skiinglab-torvinpe-2022-05-03-3d/config.yaml'
+  vertical-jumps: '/home/vuotech/DLC-projects/vertical-jump6/config.yaml'
+  mediapipe: ''
