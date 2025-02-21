@@ -117,8 +117,12 @@ Currently supported values for `analysis` names:
 
 Currently supported values for `model` names:
 
-- `wassu-cam0`
-- `prone-shooting`
+- `skiing-side`
+- `skiing-front-right`
+- `prone-shooting-top`
+- `skiing-3D`
+- `vertical-jumps-side`
+- `mediapipe`
 
 
 Response (HTTP 200):
